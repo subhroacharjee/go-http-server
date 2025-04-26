@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -81,11 +82,25 @@ func (h *HttpServer) handleRequests(conn net.Conn) {
 		return
 
 	} // hardcoding controller
+
+	fmt.Println(">>>>> Path", request.Path)
 	if request.Path == "/index.html" || request.Path == "/" {
 		if _, err := conn.Write(httpcore.NewHttpResponseWriter().ToResponseByte()); err != nil {
 			fmt.Printf("Error writing to the connection %v", err)
 		}
 		return
+	}
+	if strings.HasPrefix(request.Path, "/echo/") {
+		_, data, _ := strings.Cut(request.Path, "/echo/")
+		result := httpcore.NewHttpResponseWriter()
+		result.Write([]byte(data))
+		result.SetHeader("Content-Type", "text/plain")
+		result.SetHeader("Content-Length", fmt.Sprintf("%d", len(data)))
+		if _, err := conn.Write(result.ToResponseByte()); err != nil {
+			fmt.Printf("Error writing to the connection %v", err)
+		}
+		return
+
 	}
 
 	errorResult := httpcore.NewHttpResponseWriter()
