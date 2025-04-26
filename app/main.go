@@ -2,32 +2,15 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
-)
 
-// Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
-var (
-	_ = net.Listen
-	_ = os.Exit
+	"github.com/codecrafters-io/http-server-starter-go/internal/servercore"
 )
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
-
-	// Uncomment this block to pass the first stage
-	//
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	if err != nil {
-		fmt.Println("Failed to bind to port 4221")
+	httpServer := servercore.NewHttpServer()
+	if err := httpServer.Listen(4221); err != nil {
+		fmt.Printf("[ERROR] %v\n", err)
 		os.Exit(1)
 	}
-
-	_, err = l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
-	l.Close()
 }
