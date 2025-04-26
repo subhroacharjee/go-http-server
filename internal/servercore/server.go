@@ -1,6 +1,7 @@
 package servercore
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
@@ -37,8 +38,10 @@ func (h *HttpServer) Listen(port uint) error {
 	go func() {
 		for conn := range connChan {
 			wg.Add(1)
-			h.handleRequests(conn)
-			wg.Done()
+			go func() {
+				h.handleRequests(conn)
+				wg.Done()
+			}()
 		}
 	}()
 
@@ -65,7 +68,29 @@ func (h *HttpServer) listenOverLoop(ln net.Listener, connChan chan<- net.Conn) {
 
 func (h *HttpServer) handleRequests(conn net.Conn) {
 	defer conn.Close()
-	if _, err := conn.Write(httpcore.NewHttpResponseWriter().ToResponseByte()); err != nil {
+
+	fmt.Println("new request accepted")
+
+	request, err := httpcore.ParseRequest(bufio.NewReader(conn))
+	if err != nil {
+		errorResult := httpcore.NewHttpResponseWriter()
+		errorResult.SetStatus(httpcore.StatusBadRequest)
+		if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
+			fmt.Printf("Error writing to the connection %v", err)
+		}
+		return
+
+	} // hardcoding controller
+	if request.Path == "/index.html" || request.Path == "/" {
+		if _, err := conn.Write(httpcore.NewHttpResponseWriter().ToResponseByte()); err != nil {
+			fmt.Printf("Error writing to the connection %v", err)
+		}
+		return
+	}
+
+	errorResult := httpcore.NewHttpResponseWriter()
+	errorResult.SetStatus(httpcore.StatusNotFound)
+	if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
 		fmt.Printf("Error writing to the connection %v", err)
 	}
 }
