@@ -60,7 +60,7 @@ func ParseRequest(reader *bufio.Reader) (*Request, error) {
 
 		key, value, found := bytes.Cut(headerLineBytes, []byte(": "))
 		if found {
-			headerMap[string(key)] = string(value)
+			headerMap[strings.ToLower(string(key))] = string(value)
 		}
 	}
 

@@ -103,6 +103,19 @@ func (h *HttpServer) handleRequests(conn net.Conn) {
 
 	}
 
+	if request.Path == "/user-agent" {
+		data, _ := request.Headers["user-agent"]
+		result := httpcore.NewHttpResponseWriter()
+		result.Write([]byte(data))
+		result.SetHeader("Content-Type", "text/plain")
+		result.SetHeader("Content-Length", fmt.Sprintf("%d", len(data)))
+		if _, err := conn.Write(result.ToResponseByte()); err != nil {
+			fmt.Printf("Error writing to the connection %v", err)
+		}
+		return
+
+	}
+
 	errorResult := httpcore.NewHttpResponseWriter()
 	errorResult.SetStatus(httpcore.StatusNotFound)
 	if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
