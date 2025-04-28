@@ -60,7 +60,7 @@ func ParseRequest(reader *bufio.Reader) (*Request, error) {
 
 	// Read body if Content-Length exists
 	var body []byte
-	if contentLengthStr, ok := headerMap["Content-Length"]; ok {
+	if contentLengthStr, ok := headerMap["content-length"]; ok {
 		contentLength, err := strconv.Atoi(contentLengthStr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid Content-Length: %w", err)

@@ -68,11 +68,13 @@ func RegisterControllers(appRouter router.IRouter, directory *string) {
 		}
 		absolutePath := fmt.Sprintf("%s%s", *directory, filename)
 
+		fmt.Println(r.Body)
+
 		if err := os.WriteFile(absolutePath, r.Body, 0644); err != nil {
 			w.SetStatus(httpcore.StatusInternalServerError)
 			return
 		}
 
-		w.SetStatus(httpcore.StatusAccepted)
+		w.SetStatus(httpcore.StatusCreated)
 	})
 }
