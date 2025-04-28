@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -79,53 +80,64 @@ func (h *HttpServer) listenOverLoop(ln net.Listener, connChan chan<- net.Conn) {
 
 func (h *HttpServer) handleRequests(conn net.Conn) {
 	defer conn.Close()
+	for {
+		request, err := httpcore.ParseRequest(bufio.NewReader(conn))
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			errorResult := httpcore.NewHttpResponseWriter()
+			errorResult.SetStatus(httpcore.StatusBadRequest)
+			if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
+				fmt.Printf("Error writing to the connection %v", err)
+			}
+			return
 
-	request, err := httpcore.ParseRequest(bufio.NewReader(conn))
-	if err != nil {
-		errorResult := httpcore.NewHttpResponseWriter()
-		errorResult.SetStatus(httpcore.StatusBadRequest)
-		if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
-			fmt.Printf("Error writing to the connection %v", err)
 		}
-		return
 
-	}
+		acceptedEncoding, existsAcceptedEncoding := request.Headers["accept-encoding"]
 
-	acceptedEncoding, existsAcceptedEncoding := request.Headers["accept-encoding"]
+		handlers, pathParams := h.router.GetHandlers(request.Method, request.Path)
+		// fmt.Println(handlers == nil, pathParams)
 
-	handlers, pathParams := h.router.GetHandlers(request.Method, request.Path)
-	// fmt.Println(handlers == nil, pathParams)
-
-	if handlers == nil {
-		errorResult := httpcore.NewHttpResponseWriter()
-		errorResult.SetStatus(httpcore.StatusNotFound)
-		if existsAcceptedEncoding && acceptedEncoding == "gzip" {
-			errorResult.SetHeader("Content-Encoding", acceptedEncoding)
+		if handlers == nil {
+			errorResult := httpcore.NewHttpResponseWriter()
+			errorResult.SetStatus(httpcore.StatusNotFound)
+			if existsAcceptedEncoding && acceptedEncoding == "gzip" {
+				errorResult.SetHeader("Content-Encoding", acceptedEncoding)
+			}
+			if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
+				fmt.Printf("Error writing to the connection %v", err)
+				break
+			}
+			return
 		}
-		if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
-			fmt.Printf("Error writing to the connection %v", err)
+
+		request.PathParams = pathParams
+		response := httpcore.NewHttpResponseWriter()
+
+		for _, handler := range handlers {
+			handler(*request, &response)
+			if response.IsReadyForResponse() {
+				break
+			}
 		}
-		return
-	}
 
-	request.PathParams = pathParams
-	response := httpcore.NewHttpResponseWriter()
+		if !response.IsReadyForResponse() || !response.IsStatusSet() {
+			response.SetStatus(httpcore.StatusOK)
+		}
 
-	for _, handler := range handlers {
-		handler(*request, &response)
-		if response.IsReadyForResponse() {
+		handleEncoding(*request, &response)
+
+		if _, err := conn.Write(response.ToResponseByte()); err != nil {
+			fmt.Printf("Error writing the response %v", err)
 			break
 		}
-	}
 
-	if !response.IsReadyForResponse() || !response.IsStatusSet() {
-		response.SetStatus(httpcore.StatusOK)
-	}
-
-	handleEncoding(*request, &response)
-
-	if _, err := conn.Write(response.ToResponseByte()); err != nil {
-		fmt.Printf("Error writing the response %v", err)
+		connectionStatus, connectionHeader := request.Headers["connection"]
+		if connectionHeader && connectionStatus == "close" {
+			break
+		}
 	}
 }
 
