@@ -7,25 +7,19 @@ import (
 	"io"
 	"strconv"
 	"strings"
+
+	"github.com/codecrafters-io/http-server-starter-go/internal/common"
 )
 
-type Method string
-
-const (
-	POST   Method = "POST"
-	GET    Method = "GET"
-	HEAD   Method = "HEAD"
-	PUT    Method = "PUT"
-	PATCH  Method = "PATCH"
-	DELETE Method = "DELETE"
-)
+type HandlerFunc func(w Request, r *HttpResponseWriter)
 
 type Request struct {
-	Method  Method
-	Path    string
-	Headers HeaderMap
-	Body    []byte
-	Query   map[string]string
+	Method     common.Method
+	Path       string
+	Headers    HeaderMap
+	Body       []byte
+	Query      map[string]string
+	PathParams map[string]string
 }
 
 func ParseRequest(reader *bufio.Reader) (*Request, error) {
@@ -41,7 +35,7 @@ func ParseRequest(reader *bufio.Reader) (*Request, error) {
 		return nil, fmt.Errorf("invalid request line structure")
 	}
 
-	method := Method(string(requestLineItems[0]))
+	method := common.Method(string(requestLineItems[0]))
 	requestPath, queryMap := getQueryMapFromPath(string(requestLineItems[1]))
 	headerMap := make(HeaderMap)
 

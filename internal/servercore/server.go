@@ -6,17 +6,23 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 
 	"github.com/codecrafters-io/http-server-starter-go/internal/httpcore"
+	"github.com/codecrafters-io/http-server-starter-go/internal/router"
 )
 
-type HttpServer struct{}
+type HttpServer struct {
+	router router.ReadOnlyRouter
+}
 
-func NewHttpServer() HttpServer {
-	return HttpServer{}
+func NewHttpServer(appRouter router.IRouter) HttpServer {
+	router := router.Router{}
+	router.CopyPath(appRouter)
+	return HttpServer{
+		router: &router,
+	}
 }
 
 func (h *HttpServer) Listen(port uint) error {
@@ -70,8 +76,6 @@ func (h *HttpServer) listenOverLoop(ln net.Listener, connChan chan<- net.Conn) {
 func (h *HttpServer) handleRequests(conn net.Conn) {
 	defer conn.Close()
 
-	fmt.Println("new request accepted")
-
 	request, err := httpcore.ParseRequest(bufio.NewReader(conn))
 	if err != nil {
 		errorResult := httpcore.NewHttpResponseWriter()
@@ -81,44 +85,35 @@ func (h *HttpServer) handleRequests(conn net.Conn) {
 		}
 		return
 
-	} // hardcoding controller
+	}
 
-	fmt.Println(">>>>> Path", request.Path)
-	if request.Path == "/index.html" || request.Path == "/" {
-		if _, err := conn.Write(httpcore.NewHttpResponseWriter().ToResponseByte()); err != nil {
+	handlers, pathParams := h.router.GetHandlers(request.Method, request.Path)
+	fmt.Println(handlers == nil, pathParams)
+
+	if handlers == nil {
+		errorResult := httpcore.NewHttpResponseWriter()
+		errorResult.SetStatus(httpcore.StatusNotFound)
+		if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
 			fmt.Printf("Error writing to the connection %v", err)
 		}
 		return
 	}
-	if strings.HasPrefix(request.Path, "/echo/") {
-		_, data, _ := strings.Cut(request.Path, "/echo/")
-		result := httpcore.NewHttpResponseWriter()
-		result.Write([]byte(data))
-		result.SetHeader("Content-Type", "text/plain")
-		result.SetHeader("Content-Length", fmt.Sprintf("%d", len(data)))
-		if _, err := conn.Write(result.ToResponseByte()); err != nil {
-			fmt.Printf("Error writing to the connection %v", err)
-		}
-		return
 
+	request.PathParams = pathParams
+	response := httpcore.NewHttpResponseWriter()
+
+	for _, handler := range handlers {
+		handler(*request, &response)
+		if response.IsReadyForResponse() {
+			break
+		}
 	}
 
-	if request.Path == "/user-agent" {
-		data, _ := request.Headers["user-agent"]
-		result := httpcore.NewHttpResponseWriter()
-		result.Write([]byte(data))
-		result.SetHeader("Content-Type", "text/plain")
-		result.SetHeader("Content-Length", fmt.Sprintf("%d", len(data)))
-		if _, err := conn.Write(result.ToResponseByte()); err != nil {
-			fmt.Printf("Error writing to the connection %v", err)
-		}
-		return
-
+	if !response.IsReadyForResponse() || !response.IsStatusSet() {
+		response.SetStatus(httpcore.StatusOK)
 	}
 
-	errorResult := httpcore.NewHttpResponseWriter()
-	errorResult.SetStatus(httpcore.StatusNotFound)
-	if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
-		fmt.Printf("Error writing to the connection %v", err)
+	if _, err := conn.Write(response.ToResponseByte()); err != nil {
+		fmt.Printf("Error writing the response %v", err)
 	}
 }
