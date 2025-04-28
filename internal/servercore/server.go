@@ -2,12 +2,16 @@ package servercore
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
+	"unicode"
 
 	"github.com/codecrafters-io/http-server-starter-go/internal/httpcore"
 	"github.com/codecrafters-io/http-server-starter-go/internal/router"
@@ -117,11 +121,40 @@ func (h *HttpServer) handleRequests(conn net.Conn) {
 	if !response.IsReadyForResponse() || !response.IsStatusSet() {
 		response.SetStatus(httpcore.StatusOK)
 	}
-	if existsAcceptedEncoding && acceptedEncoding == "gzip" {
-		response.SetHeader("Content-Encoding", acceptedEncoding)
-	}
+
+	handleEncoding(*request, &response)
 
 	if _, err := conn.Write(response.ToResponseByte()); err != nil {
 		fmt.Printf("Error writing the response %v", err)
+	}
+}
+
+func handleEncoding(r httpcore.Request, w *httpcore.HttpResponseWriter) {
+	fmt.Println("Called in handlers")
+	accepted, exists := r.Headers["accept-encoding"]
+	if !exists {
+		return
+	}
+
+	encodings := strings.Split(accepted, ", ")
+	canCompress := false
+	for _, encoding := range encodings {
+		if strings.TrimFunc(encoding, unicode.IsSpace) == "gzip" {
+			canCompress = true
+			break
+		}
+	}
+
+	if canCompress {
+		var buf bytes.Buffer
+		gz := gzip.NewWriter(&buf)
+		defer gz.Close()
+
+		if _, err := gz.Write(w.Body); err != nil {
+			return
+		}
+
+		w.SetHeader("Content-Encoding", "gzip")
+		w.Write(buf.Bytes())
 	}
 }

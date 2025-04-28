@@ -8,7 +8,7 @@ type HttpResponseWriter struct {
 	statusCode    *HttpStatus
 	statusMessage string
 	headers       HeaderMap
-	body          []byte
+	Body          []byte
 }
 
 func NewHttpResponseWriter() HttpResponseWriter {
@@ -18,7 +18,7 @@ func NewHttpResponseWriter() HttpResponseWriter {
 }
 
 func (w HttpResponseWriter) IsReadyForResponse() bool {
-	return w.body != nil || w.statusCode != nil
+	return w.Body != nil || w.statusCode != nil
 }
 
 func (w HttpResponseWriter) IsStatusSet() bool {
@@ -36,7 +36,7 @@ func (w *HttpResponseWriter) SetHeader(key string, value string) {
 
 func (w *HttpResponseWriter) Write(body []byte) {
 	w.SetHeader("Content-Length", fmt.Sprintf("%d", len(body)))
-	w.body = append(w.body, body...)
+	w.Body = body
 }
 
 func (w HttpResponseWriter) ToResponseByte() []byte {
@@ -54,6 +54,6 @@ func (w HttpResponseWriter) ToResponseByte() []byte {
 	resp := make([]byte, 0)
 	resp = append(statusLine, headerLineBytes...)
 
-	resp = append(resp, w.body...)
+	resp = append(resp, w.Body...)
 	return resp
 }
