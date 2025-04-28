@@ -55,5 +55,6 @@ func (w HttpResponseWriter) ToResponseByte() []byte {
 	resp = append(statusLine, headerLineBytes...)
 
 	resp = append(resp, w.Body...)
+	fmt.Printf("%q\n", resp)
 	return resp
 }

@@ -147,14 +147,20 @@ func handleEncoding(r httpcore.Request, w *httpcore.HttpResponseWriter) {
 
 	if canCompress {
 		var buf bytes.Buffer
-		gz := gzip.NewWriter(&buf)
-		defer gz.Close()
+		zw := gzip.NewWriter(&buf)
 
-		if _, err := gz.Write(w.Body); err != nil {
+		if _, err := zw.Write(w.Body); err != nil {
 			return
 		}
 
+		if err := zw.Close(); err != nil {
+			fmt.Println("Error >>>", err)
+			return
+		}
+
+		compressedBody := buf.Bytes()
 		w.SetHeader("Content-Encoding", "gzip")
-		w.Write(buf.Bytes())
+		w.Write(compressedBody)
+
 	}
 }
