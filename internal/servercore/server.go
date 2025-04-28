@@ -80,6 +80,7 @@ func (h *HttpServer) listenOverLoop(ln net.Listener, connChan chan<- net.Conn) {
 
 func (h *HttpServer) handleRequests(conn net.Conn) {
 	defer conn.Close()
+	closeConnection := false
 	for {
 		request, err := httpcore.ParseRequest(bufio.NewReader(conn))
 		if err != nil {
@@ -128,14 +129,19 @@ func (h *HttpServer) handleRequests(conn net.Conn) {
 		}
 
 		handleEncoding(*request, &response)
+		_, connectionHeader := request.Headers["connection"]
+		if connectionHeader {
+			response.SetHeader("Connection", "close")
+			closeConnection = true
+
+		}
 
 		if _, err := conn.Write(response.ToResponseByte()); err != nil {
 			fmt.Printf("Error writing the response %v", err)
 			break
 		}
 
-		connectionStatus, connectionHeader := request.Headers["connection"]
-		if connectionHeader && connectionStatus == "close" {
+		if closeConnection {
 			break
 		}
 	}
