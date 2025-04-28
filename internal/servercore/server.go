@@ -87,12 +87,17 @@ func (h *HttpServer) handleRequests(conn net.Conn) {
 
 	}
 
+	acceptedEncoding, existsAcceptedEncoding := request.Headers["accept-encoding"]
+
 	handlers, pathParams := h.router.GetHandlers(request.Method, request.Path)
-	fmt.Println(handlers == nil, pathParams)
+	// fmt.Println(handlers == nil, pathParams)
 
 	if handlers == nil {
 		errorResult := httpcore.NewHttpResponseWriter()
 		errorResult.SetStatus(httpcore.StatusNotFound)
+		if existsAcceptedEncoding && acceptedEncoding == "gzip" {
+			errorResult.SetHeader("Content-Encoding", acceptedEncoding)
+		}
 		if _, err := conn.Write(errorResult.ToResponseByte()); err != nil {
 			fmt.Printf("Error writing to the connection %v", err)
 		}
@@ -111,6 +116,9 @@ func (h *HttpServer) handleRequests(conn net.Conn) {
 
 	if !response.IsReadyForResponse() || !response.IsStatusSet() {
 		response.SetStatus(httpcore.StatusOK)
+	}
+	if existsAcceptedEncoding && acceptedEncoding == "gzip" {
+		response.SetHeader("Content-Encoding", acceptedEncoding)
 	}
 
 	if _, err := conn.Write(response.ToResponseByte()); err != nil {
